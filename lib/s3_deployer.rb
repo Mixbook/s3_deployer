@@ -5,6 +5,7 @@ require "s3_deployer/config"
 require "s3_deployer/version"
 
 class S3Deployer
+  DATE_FORMAT = "%Y%m%d%H%M%S"
   class << self
     attr_reader :config
 
@@ -24,7 +25,7 @@ class S3Deployer
     end
 
     def deploy!
-      time = Time.now.strftime("%Y%m%d%H%M%S")
+      time = Time.now.strftime(DATE_FORMAT)
       [time, "current"].map { |dir| File.join(app_path_with_bucket, dir) }.each do |dir|
         source_files_list.each do |file|
           s3_file_dir = Pathname.new(File.dirname(file)).relative_path_from(Pathname.new(config.dist_dir)).to_s
@@ -36,6 +37,10 @@ class S3Deployer
 
     def rollback!
       puts "Rolling back to #{config.revision}"
+      if !config.revision || config.revision.strip.empty?
+        warn "You must specify the revision by REVISION env variable"
+        exit(1)
+      end
       prefix = File.join(config.app_path, config.revision)
       AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
         path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
@@ -51,7 +56,25 @@ class S3Deployer
       puts "Update revision response: #{parsed_body}"
     end
 
+    def list
+      puts "Getting the list of deployed revisions..."
+      get_list_of_revisions.each do |dir|
+        date = Time.strptime(dir, DATE_FORMAT) rescue nil
+        string = "#{dir} - #{date.strftime("%m/%d/%Y %H:%M")}"
+        puts string
+      end
+    end
+
     private
+
+      def get_list_of_revisions
+        prefix = File.join(config.app_path)
+        url = "/#{config.bucket}?prefix=#{prefix}/&delimiter=/"
+        xml = REXML::Document.new(AWS::S3::Base.get(url).body)
+        xml.elements.collect("//CommonPrefixes/Prefix") { |e| e.text.gsub(prefix, "").gsub("/", "") }.select do |dir|
+          !!(Time.strptime(dir, DATE_FORMAT) rescue nil)
+        end.sort
+      end
 
       def app_path_with_bucket
         File.join(config.bucket, config.app_path)

@@ -17,4 +17,9 @@ namespace :s3_deployer do
   task :update_revision do
     S3Deployer.update_revision!
   end
+
+  desc "Get the list of deployed revisions"
+  task :list do
+    S3Deployer.list
+  end
 end
