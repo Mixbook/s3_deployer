@@ -21,7 +21,9 @@ class S3Deployer
     end
 
     def apply_environment_settings!
-      instance_eval(@env_settings[@env.to_s])
+      if @env_settings[@env.to_s]
+        instance_eval(&@env_settings[@env.to_s])
+      end
     end
   end
 end
