@@ -22,11 +22,16 @@ You need to specify s3_deployer_config.rb file in your home directory, which may
 
 ```ruby
 S3Deployer.configure do
-  bucket "mixbook_dev"
+  bucket "mixbook"
   app_name "previewer"
   app_path "taco/dart/#{app_name}#{"-#{version}" if version && version != ""}"
   mixbook_host "http://localhost:3000"
   dist_dir "dist"
+
+  # You also can specify environment-specific settings, the default environment is 'production'
+  environment(:development) do
+    bucket "mixbook_dev"
+  end
 
   access_key_id 'your S3 access key id'
   secret_access_key 'your S3 secret access key'
@@ -72,6 +77,14 @@ $ rake s3_deployer:update_revision # makes a call to Mixbook.com to clear cache
 $ rake s3_deployer:deploy VERSION=new-stuff # check the example of deployer.rb above to see how it is used
 $ rake s3_deployer:list # get the list of all deployed revisions
 ```
+
+If you want to run s3_deployer in some specific environment, use ENV variable:
+
+```bash
+$ ENV=development rake s3_deployer:deploy
+```
+
+Default environment is 'production'
 
 ## Contributing
 

@@ -12,6 +12,7 @@ class S3Deployer
     def configure(&block)
       @config = Config.new
       @config.instance_eval(&block)
+      @config.apply_environment_settings!
 
       AWS::S3::Base.establish_connection!(
         access_key_id: config.access_key_id,
