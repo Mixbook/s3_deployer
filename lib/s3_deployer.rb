@@ -6,6 +6,7 @@ require "s3_deployer/version"
 
 class S3Deployer
   DATE_FORMAT = "%Y%m%d%H%M%S"
+  CURRENT_REVISION = "CURRENT_REVISION"
   class << self
     attr_reader :config
 
@@ -34,6 +35,16 @@ class S3Deployer
           store_value(File.basename(file), File.read(file), absolute_s3_file_dir)
         end
       end
+      store_current_revision(time)
+    end
+
+    def current
+      current_revision = get_current_revision
+      if current_revision
+        puts "Current revision: #{current_revision} - #{get_datetime_from_revision(current_revision)}"
+      else
+        puts "There is no information about the current revision"
+      end
     end
 
     def rollback!
@@ -47,6 +58,7 @@ class S3Deployer
         path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
         store_value(File.basename(path), object.value, File.dirname(path))
       end
+      store_current_revision(config.revision)
     end
 
     def update_revision!
@@ -59,9 +71,9 @@ class S3Deployer
 
     def list
       puts "Getting the list of deployed revisions..."
+      current_revision = get_current_revision
       get_list_of_revisions.each do |dir|
-        date = Time.strptime(dir, DATE_FORMAT) rescue nil
-        string = "#{dir} - #{date.strftime("%m/%d/%Y %H:%M")}"
+        string = "#{dir} - #{get_datetime_from_revision(dir)}#{" <= current" if dir == current_revision}"
         puts string
       end
     end
@@ -81,9 +93,28 @@ class S3Deployer
         File.join(config.bucket, config.app_path)
       end
 
+      def get_datetime_from_revision(revision)
+        date = Time.strptime(revision, DATE_FORMAT) rescue nil
+        date.strftime("%m/%d/%Y %H:%M") if date
+      end
+
+      def current_revision_path
+        File.join(app_path_with_bucket, CURRENT_REVISION)
+      end
+
       def get_value(key, path)
         puts "Retrieving value #{key} from #{path} on S3"
         AWS::S3::S3Object.value(key, path)
+      end
+
+      def store_current_revision(revision)
+        store_value(File.basename(current_revision_path), revision, File.dirname(current_revision_path))
+      end
+
+      def get_current_revision
+        get_value(File.basename(current_revision_path), File.dirname(current_revision_path))
+      rescue AWS::S3::NoSuchKey
+        nil
       end
 
       def store_value(key, value, path)
