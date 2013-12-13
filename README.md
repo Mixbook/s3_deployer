@@ -27,6 +27,7 @@ S3Deployer.configure do
   app_path "taco/dart/#{app_name}#{"-#{version}" if version && version != ""}"
   mixbook_host "http://localhost:3000"
   dist_dir "dist"
+  gzip true
 
   # You also can specify environment-specific settings, the default environment is 'production'
   environment(:development) do
