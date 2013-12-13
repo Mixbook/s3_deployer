@@ -1,5 +1,7 @@
 require 'aws/s3'
 require 'json'
+require 'zlib'
+require 'stringio'
 
 require "s3_deployer/config"
 require "s3_deployer/version"
@@ -118,12 +120,37 @@ class S3Deployer
       end
 
       def store_value(key, value, path)
-        puts "Storing value #{key} to #{path} on S3"
-        AWS::S3::S3Object.store(key, value, path, access: :public_read)
+        puts "Storing value #{key} to #{path} on S3#{", gzipped" if config.gzip}"
+        options = {access: :public_read}
+        if config.gzip
+          options[:content_encoding] = "gzip"
+          value = compress(value)
+        end
+        AWS::S3::S3Object.store(key, value, path, options)
+      end
+
+      def compress(source)
+        output = Stream.new
+        gz = Zlib::GzipWriter.new(output, Zlib::DEFAULT_COMPRESSION, Zlib::DEFAULT_STRATEGY)
+        gz.write(source)
+        gz.close
+        output.string
       end
 
       def source_files_list
         Dir.glob(File.join(config.dist_dir, "**/*")).select { |f| File.file?(f) }
       end
+
+      class Stream < StringIO
+        def initialize(*)
+          super
+          set_encoding "BINARY"
+        end
+
+        def close
+          rewind
+        end
+      end
+
   end
 end
