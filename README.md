@@ -28,6 +28,7 @@ S3Deployer.configure do
   mixbook_host "http://localhost:3000"
   dist_dir "dist"
   gzip [/\.js$/, /\.css$/] # or just use 'true' to gzip everything
+  colorize true
 
   # You also can specify environment-specific settings, the default environment is 'production'
   environment(:development) do

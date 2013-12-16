@@ -4,6 +4,7 @@ require 'zlib'
 require 'stringio'
 
 require "s3_deployer/config"
+require "s3_deployer/color"
 require "s3_deployer/version"
 
 class S3Deployer
@@ -120,7 +121,7 @@ class S3Deployer
       end
 
       def store_value(key, value, path)
-        puts "Storing value #{key} to #{path} on S3#{", gzipped" if should_compress?(key)}"
+        puts "Storing value #{colorize(:yellow, key)} to #{colorize(:yellow, path)} on S3#{", #{colorize(:green, 'gzipped')}" if should_compress?(key)}"
         options = {access: :public_read}
         if should_compress?(key)
           options[:content_encoding] = "gzip"
@@ -147,6 +148,10 @@ class S3Deployer
 
       def source_files_list
         Dir.glob(File.join(config.dist_dir, "**/*")).select { |f| File.file?(f) }
+      end
+
+      def colorize(color, text)
+        config.colorize ? Color.send(color, text) : text
       end
 
       class Stream < StringIO
