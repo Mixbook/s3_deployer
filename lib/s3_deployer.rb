@@ -120,13 +120,21 @@ class S3Deployer
       end
 
       def store_value(key, value, path)
-        puts "Storing value #{key} to #{path} on S3#{", gzipped" if config.gzip}"
+        puts "Storing value #{key} to #{path} on S3#{", gzipped" if should_compress?(key)}"
         options = {access: :public_read}
-        if config.gzip
+        if should_compress?(key)
           options[:content_encoding] = "gzip"
           value = compress(value)
         end
         AWS::S3::S3Object.store(key, value, path, options)
+      end
+
+      def should_compress?(key)
+        if [true, false, nil].include?(config.gzip)
+          !!config.gzip
+        else
+          key != CURRENT_REVISION && Array(config.gzip).any? { |regexp| key.match(regexp) }
+        end
       end
 
       def compress(source)
