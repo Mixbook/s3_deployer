@@ -60,6 +60,7 @@ There is 2 main tasks - for deploy, and for rollback. When you deploy, it create
   /to
     /app
       CURRENT_REVISION
+      SHAS
       /current
       /20130809134509
       /20130809140328
@@ -78,8 +79,9 @@ $ rake s3_deployer:deploy
 $ rake s3_deployer:rollback REVISION=20130809140330
 $ rake s3_deployer:update_revision # makes a call to Mixbook.com to clear cache
 $ rake s3_deployer:deploy VERSION=new-stuff # check the example of deployer.rb above to see how it is used
-$ rake s3_deployer:list # get the list of all deployed revisions
+$ rake s3_deployer:list # get the list of all deployed revisions and their SHAs and commit subjects
 $ rake s3_deployer:current # get the currently deployed revision
+$ rake s3_deployer:stage # only creates timestamp dir, like 20130809134509, but doesn't override the 'current' dir
 ```
 
 If you want to run s3_deployer in some specific environment, use ENV variable:

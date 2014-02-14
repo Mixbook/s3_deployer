@@ -79,7 +79,7 @@ class S3Deployer
       get_list_of_revisions.each do |rev|
         datetime = get_datetime_from_revision(rev)
         sha = shas_by_revisions[rev]
-        title = sha ? `git show -s --format=%B #{sha}`.strip : nil
+        title = sha ? `git show -s --format=%s #{sha}`.strip : nil
         string = "#{rev} - #{datetime} #{sha ? " - #{sha[0..7]}" : ""} #{title ? "(#{title})" : ""} #{" <= current" if rev == current_revision}"
         puts string
       end
