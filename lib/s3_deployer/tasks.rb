@@ -7,6 +7,11 @@ namespace :s3_deployer do
     Rake::Task["s3_deployer:update_revision"].invoke
   end
 
+  desc "Deploy the revision, but don't change it to the 'current' revision"
+  task :stage do
+    S3Deployer.stage!
+  end
+
   desc "Rollback"
   task :rollback do
     S3Deployer.rollback!
