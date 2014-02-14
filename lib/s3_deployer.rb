@@ -56,12 +56,13 @@ class S3Deployer
         warn "You must specify the revision by REVISION env variable"
         exit(1)
       end
-      prefix = File.join(config.app_path, config.revision)
+      revision = normalize_revision(config.revision)
+      prefix = File.join(config.app_path, revision)
       AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
         path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
         store_value(File.basename(path), object.value, File.dirname(path))
       end
-      store_current_revision(config.revision)
+      store_current_revision(revision)
     end
 
     def update_revision!
@@ -70,6 +71,15 @@ class S3Deployer
       res = Net::HTTP.post_form(update_uri, base: config.app_name, version: config.version)
       parsed_body = JSON.parse(res.body)
       puts "Update revision response: #{parsed_body}"
+    end
+
+    def normalize_revision(revision)
+      datetime = get_datetime_from_revision(revision)
+      if datetime
+        revision
+      else
+        get_shas_by_revisions.detect { |k, v| v.start_with?(revision) }.first
+      end
     end
 
     def list
