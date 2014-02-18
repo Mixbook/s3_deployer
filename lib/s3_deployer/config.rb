@@ -10,7 +10,7 @@ class S3Deployer
       colorize true
     end
 
-    %w{bucket app_name app_path mixbook_host dist_dir access_key_id secret_access_key gzip colorize}.each do |method|
+    %w{bucket app_name app_path mixbook_host dist_dir access_key_id secret_access_key gzip colorize after_deploy}.each do |method|
       define_method method do |value = :omitted|
         instance_variable_set("@#{method}", value) unless value == :omitted
         instance_variable_get("@#{method}")
