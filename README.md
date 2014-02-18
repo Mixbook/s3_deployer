@@ -30,6 +30,10 @@ S3Deployer.configure do
   gzip [/\.js$/, /\.css$/] # or just use 'true' to gzip everything
   colorize true
 
+  after_deploy -> do
+    # Some custom code to execute after deploy or rollback
+  end
+
   # You also can specify environment-specific settings, the default environment is 'production'
   environment(:development) do
     bucket "mixbook_dev"

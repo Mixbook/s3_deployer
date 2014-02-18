@@ -34,6 +34,7 @@ class S3Deployer
       stage!(time)
       copy_files_to_s3("current")
       store_current_revision(time)
+      config.after_deploy.call if config.after_deploy
     end
 
     def stage!(time = Time.now.strftime(DATE_FORMAT))
@@ -63,6 +64,7 @@ class S3Deployer
         store_value(File.basename(path), object.value, File.dirname(path))
       end
       store_current_revision(revision)
+      config.after_deploy.call if config.after_deploy
     end
 
     def update_revision!
