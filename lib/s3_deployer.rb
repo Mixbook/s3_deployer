@@ -31,6 +31,7 @@ class S3Deployer
 
     def deploy!
       time = Time.now.strftime(DATE_FORMAT)
+      config.before_deploy[time] if config.before_deploy
       stage!(time)
       copy_files_to_s3("current")
       store_current_revision(time)
@@ -58,6 +59,7 @@ class S3Deployer
         exit(1)
       end
       revision = normalize_revision(config.revision)
+      config.before_deploy[revision] if config.before_deploy
       prefix = File.join(config.app_path, revision)
       AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
         path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
