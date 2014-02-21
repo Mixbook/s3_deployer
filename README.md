@@ -30,7 +30,11 @@ S3Deployer.configure do
   gzip [/\.js$/, /\.css$/] # or just use 'true' to gzip everything
   colorize true
 
-  after_deploy -> do
+  before_deploy ->(version) do
+    # Some custom code to execute before deploy or rollback
+  end
+
+  after_deploy ->(version) do
     # Some custom code to execute after deploy or rollback
   end
 
