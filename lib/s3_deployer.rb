@@ -64,7 +64,8 @@ class S3Deployer
       prefix = File.join(config.app_path, revision)
       AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
         path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
-        store_value(File.basename(path), object.value, File.dirname(path))
+        value = object.about["content-encoding"] == "gzip" ? decompress(object.value) : object.value
+        store_value(File.basename(path), value, File.dirname(path))
       end
       store_current_revision(revision)
       config.after_deploy[revision] if config.after_deploy
@@ -189,6 +190,10 @@ class S3Deployer
         gz.write(source)
         gz.close
         output.string
+      end
+
+      def decompress(source)
+        Zlib::GzipReader.new(StringIO.new(source)).read
       end
 
       def source_files_list
