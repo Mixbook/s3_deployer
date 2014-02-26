@@ -8,11 +8,12 @@ class S3Deployer
       @env = ENV["ENV"] || "production"
       @env_settings = {}
       colorize true
+      time_zone "GMT"
     end
 
     %w{
       bucket app_name app_path mixbook_host dist_dir access_key_id secret_access_key
-      gzip colorize before_deploy after_deploy
+      gzip colorize before_deploy after_deploy time_zone
     }.each do |method|
       define_method method do |value = :omitted|
         instance_variable_set("@#{method}", value) unless value == :omitted
