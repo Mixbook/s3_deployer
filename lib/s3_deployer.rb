@@ -2,6 +2,7 @@ require 'aws/s3'
 require 'json'
 require 'zlib'
 require 'stringio'
+require 'tzinfo'
 
 require "s3_deployer/config"
 require "s3_deployer/color"
@@ -30,7 +31,7 @@ class S3Deployer
     end
 
     def deploy!
-      time = Time.now.strftime(DATE_FORMAT)
+      time = time_zone.now.strftime(DATE_FORMAT)
       config.before_deploy[time] if config.before_deploy
       stage!(time)
       copy_files_to_s3("current")
@@ -38,7 +39,7 @@ class S3Deployer
       config.after_deploy[time] if config.after_deploy
     end
 
-    def stage!(time = Time.now.strftime(DATE_FORMAT))
+    def stage!(time = time_zone.now.strftime(DATE_FORMAT))
       copy_files_to_s3(time)
       store_git_hash(time)
     end
@@ -196,6 +197,10 @@ class S3Deployer
 
       def colorize(color, text)
         config.colorize ? Color.send(color, text) : text
+      end
+
+      def time_zone
+        TZInfo::Timezone.get(config.time_zone)
       end
 
       class Stream < StringIO
