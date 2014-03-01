@@ -29,6 +29,8 @@ S3Deployer.configure do
   dist_dir "dist"
   gzip [/\.js$/, /\.css$/] # or just use 'true' to gzip everything
   colorize true
+  time_zone "America/Los_Angeles" # Useful when you develop from different timezones (e.g. for distributed team),
+                                  # to be consistent with revision numbers
 
   before_deploy ->(version) do
     # Some custom code to execute before deploy or rollback
