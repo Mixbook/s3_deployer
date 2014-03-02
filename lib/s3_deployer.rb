@@ -31,17 +31,45 @@ class S3Deployer
     end
 
     def deploy!
-      time = time_zone.now.strftime(DATE_FORMAT)
-      config.before_deploy[time] if config.before_deploy
-      stage!(time)
-      copy_files_to_s3("current")
-      store_current_revision(time)
-      config.after_deploy[time] if config.after_deploy
+      revision = time_zone.now.strftime(DATE_FORMAT)
+      config.before_deploy[revision] if config.before_deploy
+      stage!(revision)
+      switch!(revision)
+      config.after_deploy[revision] if config.after_deploy
     end
 
-    def stage!(time = time_zone.now.strftime(DATE_FORMAT))
-      copy_files_to_s3(time)
-      store_git_hash(time)
+    def stage!(revision = time_zone.now.strftime(DATE_FORMAT))
+      puts "Staging #{revision}"
+      config.before_stage[revision] if config.before_stage
+      copy_files_to_s3(revision)
+      store_git_hash(revision)
+      config.after_stage[revision] if config.after_stage
+    end
+
+    def switch!(revision = config.revision)
+      puts "Switching to #{revision}"
+      if !revision || revision.strip.empty?
+        warn "You must specify the revision by REVISION env variable"
+        exit(1)
+      end
+      revision = normalize_revision(revision)
+      config.before_switch[revision] if config.before_switch
+      prefix = File.join(config.app_path, revision)
+      AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
+        path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
+        value = object.about["content-encoding"] == "gzip" ? decompress(object.value) : object.value
+        store_value(File.basename(path), value, File.dirname(path))
+      end
+      store_current_revision(revision)
+      config.after_switch[revision] if config.after_switch
+    end
+
+    def update_revision!
+      puts "Updating revision..."
+      update_uri = URI.parse("#{config.mixbook_host}/services/dart/update_revision")
+      res = Net::HTTP.post_form(update_uri, base: config.app_name, version: config.version)
+      parsed_body = JSON.parse(res.body)
+      puts "Update revision response: #{parsed_body}"
     end
 
     def current
@@ -51,32 +79,6 @@ class S3Deployer
       else
         puts "There is no information about the current revision"
       end
-    end
-
-    def rollback!
-      puts "Rolling back to #{config.revision}"
-      if !config.revision || config.revision.strip.empty?
-        warn "You must specify the revision by REVISION env variable"
-        exit(1)
-      end
-      revision = normalize_revision(config.revision)
-      config.before_deploy[revision] if config.before_deploy
-      prefix = File.join(config.app_path, revision)
-      AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
-        path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
-        value = object.about["content-encoding"] == "gzip" ? decompress(object.value) : object.value
-        store_value(File.basename(path), value, File.dirname(path))
-      end
-      store_current_revision(revision)
-      config.after_deploy[revision] if config.after_deploy
-    end
-
-    def update_revision!
-      puts "Updating revision..."
-      update_uri = URI.parse("#{config.mixbook_host}/services/dart/update_revision")
-      res = Net::HTTP.post_form(update_uri, base: config.app_name, version: config.version)
-      parsed_body = JSON.parse(res.body)
-      puts "Update revision response: #{parsed_body}"
     end
 
     def normalize_revision(revision)

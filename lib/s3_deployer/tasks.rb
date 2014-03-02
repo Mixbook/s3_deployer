@@ -12,9 +12,9 @@ namespace :s3_deployer do
     S3Deployer.stage!
   end
 
-  desc "Rollback"
-  task :rollback do
-    S3Deployer.rollback!
+  desc "Switch"
+  task :switch do
+    S3Deployer.switch!
     Rake::Task["s3_deployer:update_revision"].invoke
   end
 
