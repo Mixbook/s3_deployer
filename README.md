@@ -30,12 +30,28 @@ S3Deployer.configure do
   gzip [/\.js$/, /\.css$/] # or just use 'true' to gzip everything
   colorize true
 
+  before_stage ->(version) do
+    # Some custom code to execute before deploy and stage
+  end
+
+  after_stage ->(version) do
+    # Some custom code to execute after deploy and stage
+  end
+
+  before_switch ->(version) do
+    # Some custom code to execute before deploy and switch
+  end
+
+  after_switch ->(version) do
+    # Some custom code to execute after deploy and switch
+  end
+
   before_deploy ->(version) do
-    # Some custom code to execute before deploy or rollback
+    # Some custom code to execute before deploy
   end
 
   after_deploy ->(version) do
-    # Some custom code to execute after deploy or rollback
+    # Some custom code to execute after deploy
   end
 
   # You also can specify environment-specific settings, the default environment is 'production'
@@ -61,35 +77,51 @@ require 's3_deployer/tasks'
 require './s3_deployer_config'
 ```
 
-There is 2 main tasks - for deploy, and for rollback. When you deploy, it creates a directories structure on S3, like:
+There are 3 main tasks - for deploy, switch and stage. When you stage, it gets all the files from the dist_dir,
+and copies them to S3. It creates a directories structure on S3, like:
 
 ```
 /path
   /to
     /app
-      CURRENT_REVISION
-      SHAS
-      /current
       /20130809134509
       /20130809140328
       ...
+      SHAS
 ```
 
-'current' contains the currently used copy of app. We use 'current' in Mixbook.com.
-So, when you deploy, it copies the app both to 'current' and to the dir which looks like %Y%m%d%H%M%S.
+These '20130809134509'-like directories are actually 'staged' versions of the app. Directory name is just
+a revision name, in format "%Y%m%d%H%M%S".
 
-When you rollback, it copies files from the REVISION directory you specified to the current directory.
+Then, you have to do 'switch', which just copies the selected revision directory into 'current'.
+So, after 'switch' e.g. to 20130809134509, the directory structure will be like
+
+```
+/path
+  /to
+    /app
+      /20130809134509
+      /20130809140328
+      ...
+      /current
+      CURRENT_REVISION
+      SHAS
+```
+
+'current' contains the currently used copy of app. Your app should use files from this directory.
+
+You also could do "deploy", it is basically "stage", and then "switch" to just staged revision.
 
 So, use it like this:
 
 ```bash
-$ rake s3_deployer:deploy
-$ rake s3_deployer:rollback REVISION=20130809140330
-$ rake s3_deployer:update_revision # makes a call to Mixbook.com to clear cache
-$ rake s3_deployer:deploy VERSION=new-stuff # check the example of deployer.rb above to see how it is used
-$ rake s3_deployer:list # get the list of all deployed revisions and their SHAs and commit subjects
-$ rake s3_deployer:current # get the currently deployed revision
 $ rake s3_deployer:stage # only creates timestamp dir, like 20130809134509, but doesn't override the 'current' dir
+$ rake s3_deployer:switch REVISION=20130809140330
+$ rake s3_deployer:deploy
+$ rake s3_deployer:deploy VERSION=new-stuff # check the example of deployer.rb above to see how it is used
+$ rake s3_deployer:current # get the currently deployed revision
+$ rake s3_deployer:list # get the list of all deployed revisions and their SHAs and commit subjects
+$ rake s3_deployer:update_revision # makes a call to Mixbook.com to clear cache
 ```
 
 If you want to run s3_deployer in some specific environment, use ENV variable:
