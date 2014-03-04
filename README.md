@@ -1,6 +1,6 @@
 # S3Deployer
 
-Tool for deploying our client apps (Dart, maybe Flash in future too) to S3
+Tool for versioned deploying of client-side apps (or literally anything) to S3
 
 ## Installation
 
@@ -18,34 +18,33 @@ Or install it yourself as:
 
 ## Usage
 
-You need to specify s3_deployer_config.rb file in your home directory, which may look like this (example from our 'previewer' Dart app)
+You need to specify s3_deployer_config.rb file in your home directory, which may look like this:
 
 ```ruby
 S3Deployer.configure do
-  bucket "mixbook"
-  app_name "previewer"
-  app_path "taco/dart/#{app_name}#{"-#{version}" if version && version != ""}"
-  mixbook_host "http://localhost:3000"
+  bucket "some-bucket"
+  app_name "devastator"
+  app_path "path/to/#{app_name}#{"-#{version}" if version && version != ""}"
   dist_dir "dist"
   gzip [/\.js$/, /\.css$/] # or just use 'true' to gzip everything
   colorize true
-  time_zone "America/Los_Angeles" # Useful when you develop from different timezones (e.g. for distributed team),
-                                  # to be consistent with revision numbers
+  time_zone "America/Los_Angeles" # Useful when you develop from different timezones (e.g. for distributed team,
+                                  # or when deploy from some build server), to be consistent with revision numbers
 
   before_stage ->(version) do
-    # Some custom code to execute before deploy and stage
+    # Some custom code to execute before deploy or stage
   end
 
   after_stage ->(version) do
-    # Some custom code to execute after deploy and stage
+    # Some custom code to execute after deploy or stage
   end
 
   before_switch ->(version) do
-    # Some custom code to execute before deploy and switch
+    # Some custom code to execute before deploy or switch
   end
 
   after_switch ->(version) do
-    # Some custom code to execute after deploy and switch
+    # Some custom code to execute after deploy or switch
   end
 
   before_deploy ->(version) do
@@ -58,7 +57,7 @@ S3Deployer.configure do
 
   # You also can specify environment-specific settings, the default environment is 'production'
   environment(:development) do
-    bucket "mixbook_dev"
+    bucket "some-bucket-dev"
   end
 
   access_key_id 'your S3 access key id'
@@ -93,7 +92,7 @@ and copies them to S3. It creates a directories structure on S3, like:
 ```
 
 These '20130809134509'-like directories are actually 'staged' versions of the app. Directory name is just
-a revision name, in format "%Y%m%d%H%M%S".
+a revision name, in the format "%Y%m%d%H%M%S".
 
 Then, you have to do 'switch', which just copies the selected revision directory into 'current'.
 So, after 'switch' e.g. to 20130809134509, the directory structure will be like
@@ -110,7 +109,7 @@ So, after 'switch' e.g. to 20130809134509, the directory structure will be like
       SHAS
 ```
 
-'current' contains the currently used copy of app. Your app should use files from this directory.
+'current' contains the currently used copy of the app. Your app should use files from this directory.
 
 You also could do "deploy", it is basically "stage", and then "switch" to just staged revision.
 
@@ -123,7 +122,6 @@ $ rake s3_deployer:deploy
 $ rake s3_deployer:deploy VERSION=new-stuff # check the example of deployer.rb above to see how it is used
 $ rake s3_deployer:current # get the currently deployed revision
 $ rake s3_deployer:list # get the list of all deployed revisions and their SHAs and commit subjects
-$ rake s3_deployer:update_revision # makes a call to Mixbook.com to clear cache
 ```
 
 If you want to run s3_deployer in some specific environment, use ENV variable:

@@ -64,14 +64,6 @@ class S3Deployer
       config.after_switch[revision] if config.after_switch
     end
 
-    def update_revision!
-      puts "Updating revision..."
-      update_uri = URI.parse("#{config.mixbook_host}/services/dart/update_revision")
-      res = Net::HTTP.post_form(update_uri, base: config.app_name, version: config.version)
-      parsed_body = JSON.parse(res.body)
-      puts "Update revision response: #{parsed_body}"
-    end
-
     def current
       current_revision = get_current_revision
       if current_revision
