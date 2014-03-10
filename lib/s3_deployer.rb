@@ -39,7 +39,7 @@ class S3Deployer
     end
 
     def stage!(revision = time_zone.now.strftime(DATE_FORMAT))
-      puts "Staging #{revision}"
+      puts "Staging #{colorize(:green, revision)}"
       config.before_stage[revision] if config.before_stage
       copy_files_to_s3(revision)
       store_git_hash(revision)
@@ -47,13 +47,17 @@ class S3Deployer
     end
 
     def switch!(revision = config.revision)
-      puts "Switching to #{revision}"
+      current_revision = get_current_revision
+      current_sha = sha_of_revision(current_revision)
+      sha = sha_of_revision(revision)
+      puts "Switching from #{colorize(:green, current_revision)} (#{colorize(:yellow, current_sha && current_sha[0..7])}) " +
+        "to #{colorize(:green, revision)} (#{colorize(:yellow, sha && sha[0..7])})"
       if !revision || revision.strip.empty?
         warn "You must specify the revision by REVISION env variable"
         exit(1)
       end
       revision = normalize_revision(revision)
-      config.before_switch[revision] if config.before_switch
+      config.before_switch[current_revision, revision] if config.before_switch
       prefix = File.join(config.app_path, revision)
       AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
         path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
@@ -61,7 +65,7 @@ class S3Deployer
         store_value(File.basename(path), value, File.dirname(path))
       end
       store_current_revision(revision)
-      config.after_switch[revision] if config.after_switch
+      config.after_switch[current_revision, revision] if config.after_switch
     end
 
     def current
@@ -78,14 +82,13 @@ class S3Deployer
       if datetime
         revision
       else
-        get_shas_by_revisions.detect { |k, v| v.start_with?(revision) }.first
+        shas_by_revisions.detect { |k, v| v.start_with?(revision) }.first
       end
     end
 
     def list
       puts "Getting the list of deployed revisions..."
       current_revision = get_current_revision
-      shas_by_revisions = get_shas_by_revisions
       get_list_of_revisions.each do |rev|
         datetime = get_datetime_from_revision(rev)
         sha = shas_by_revisions[rev]
@@ -93,6 +96,20 @@ class S3Deployer
         string = "#{rev} - #{datetime} #{sha ? " - #{sha[0..7]}" : ""} #{title ? "(#{title})" : ""} #{" <= current" if rev == current_revision}"
         puts string
       end
+    end
+
+    def changes(from, to)
+      from_sha = sha_of_revision(from)
+      to_sha = sha_of_revision(to)
+      if from_sha && to_sha
+        `git log --oneline --reverse #{from_sha}...#{to_sha}`.split("\n").map(&:strip)
+      else
+        []
+      end
+    end
+
+    def sha_of_revision(revision)
+      shas_by_revisions[normalize_revision(revision)]
     end
 
     private
@@ -124,8 +141,8 @@ class S3Deployer
         date.strftime("%m/%d/%Y %H:%M") if date
       end
 
-      def get_shas_by_revisions
-        get_value("SHAS", app_path_with_bucket).split("\n").inject({}) do |memo, line|
+      def shas_by_revisions
+        @shas_by_revisions ||= get_value("SHAS", app_path_with_bucket).split("\n").inject({}) do |memo, line|
           revision, sha = line.split(" - ").map(&:strip)
           memo[revision] = sha
           memo
@@ -148,10 +165,11 @@ class S3Deployer
       end
 
       def store_git_hash(time)
-        shas_by_revisions = get_shas_by_revisions
-        shas_by_revisions[time] = `git rev-parse HEAD`.strip
-        value = shas_by_revisions.map { |sha, rev| "#{sha} - #{rev}" }.join("\n")
+        value = shas_by_revisions.
+          merge(time => `git rev-parse HEAD`.strip).
+          map { |sha, rev| "#{sha} - #{rev}" }.join("\n")
         store_value("SHAS", value, app_path_with_bucket)
+        @shas_by_revisions = nil
       end
 
       def get_current_revision
@@ -187,7 +205,11 @@ class S3Deployer
       end
 
       def decompress(source)
-        Zlib::GzipReader.new(StringIO.new(source)).read
+        begin
+          Zlib::GzipReader.new(StringIO.new(source)).read
+        rescue Zlib::GzipFile::Error
+          source
+        end
       end
 
       def source_files_list
