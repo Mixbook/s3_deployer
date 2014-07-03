@@ -9,11 +9,12 @@ class S3Deployer
       @env_settings = {}
       colorize true
       time_zone "GMT"
+      current_path "current"
     end
 
     %w{
       bucket app_name app_path mixbook_host dist_dir access_key_id secret_access_key
-      gzip colorize time_zone
+      gzip colorize time_zone current_path
       before_deploy after_deploy before_stage after_stage before_switch after_switch
     }.each do |method|
       define_method method do |value = :omitted|
