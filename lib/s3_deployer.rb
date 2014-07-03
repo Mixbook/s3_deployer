@@ -58,9 +58,10 @@ class S3Deployer
       end
       revision = normalize_revision(revision)
       config.before_switch[current_revision, revision] if config.before_switch
-      prefix = File.join(config.app_path, revision)
+      prefix = config.app_path.empty? ? revision : File.join(config.app_path, revision)
       AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
-        path = File.join(config.bucket, object.key.gsub(prefix, File.join(config.app_path, "current")))
+        target_path = config.app_path.empty? ? @config.current_path : File.join(config.app_path, @config.current_path)
+        path = File.join(config.bucket, object.key.gsub(prefix, target_path))
         value = object.about["content-encoding"] == "gzip" ? decompress(object.value) : object.value
         store_value(File.basename(path), value, File.dirname(path))
       end
@@ -78,11 +79,13 @@ class S3Deployer
     end
 
     def normalize_revision(revision)
-      datetime = get_datetime_from_revision(revision)
-      if datetime
-        revision
-      else
-        shas_by_revisions.detect { |k, v| v.start_with?(revision) }.first
+      if revision && !revision.empty?
+        datetime = get_datetime_from_revision(revision)
+        if datetime
+          revision
+        else
+          shas_by_revisions.detect { |k, v| v.start_with?(revision) }.first
+        end
       end
     end
 
