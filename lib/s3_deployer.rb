@@ -184,6 +184,9 @@ class S3Deployer
       def store_value(key, value, path)
         puts "Storing value #{colorize(:yellow, key)} to #{colorize(:yellow, path)} on S3#{", #{colorize(:green, 'gzipped')}" if should_compress?(key)}"
         options = {access: :public_read}
+        if config.cache_control && !config.cache_control.empty?
+          options[:cache_control] = config.cache_control
+        end
         if should_compress?(key)
           options[:content_encoding] = "gzip"
           value = compress(value)
