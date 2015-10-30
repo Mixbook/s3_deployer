@@ -1,8 +1,10 @@
-require 'aws/s3'
 require 'json'
 require 'zlib'
 require 'stringio'
 require 'tzinfo'
+require 'rexml/document'
+require 'parallel'
+require 'aws-sdk'
 
 require "s3_deployer/config"
 require "s3_deployer/color"
@@ -19,10 +21,10 @@ class S3Deployer
       @config.instance_eval(&block)
       @config.apply_environment_settings!
 
-      AWS::S3::Base.establish_connection!(
-        access_key_id: config.access_key_id,
-        secret_access_key: config.secret_access_key
-      )
+      Aws.config.update({
+        region: config.region,
+        credentials: Aws::Credentials.new(config.access_key_id, config.secret_access_key),
+      })
     end
 
     def execute(cmd)
@@ -59,11 +61,17 @@ class S3Deployer
       revision = normalize_revision(revision)
       config.before_switch[current_revision, revision] if config.before_switch
       prefix = config.app_path.empty? ? revision : File.join(config.app_path, revision)
-      AWS::S3::Bucket.objects(config.bucket, prefix: prefix).each do |object|
+      list_of_objects = []
+      Aws::S3::Resource.new.bucket(config.bucket).objects(prefix: prefix).each do |object_summary|
+        list_of_objects << object_summary
+      end
+      Parallel.each(list_of_objects, in_threads: 20) do |object_summary|
+        object = object_summary.object
         target_path = config.app_path.empty? ? @config.current_path : File.join(config.app_path, @config.current_path)
-        path = File.join(config.bucket, object.key.gsub(prefix, target_path))
-        value = object.about["content-encoding"] == "gzip" ? decompress(object.value) : object.value
-        store_value(File.basename(path), value, File.dirname(path))
+        path = object.key.gsub(prefix, target_path)
+        value = object.get.body.read
+        value = object.content_encoding == "gzip" ? decompress(value) : value
+        store_value(path, value)
       end
       store_current_revision(revision)
       config.after_switch[current_revision, revision] if config.after_switch
@@ -118,19 +126,17 @@ class S3Deployer
     private
 
       def copy_files_to_s3(rev)
-        dir = File.join(app_path_with_bucket, rev)
-        source_files_list.each do |file|
-          s3_file_dir = Pathname.new(File.dirname(file)).relative_path_from(Pathname.new(config.dist_dir)).to_s
-          absolute_s3_file_dir = s3_file_dir == "." ? dir : File.join(dir, s3_file_dir)
-          store_value(File.basename(file), File.read(file), absolute_s3_file_dir)
+        dir = File.join(config.app_path, rev)
+        Parallel.each(source_files_list, in_threads: 20) do |file|
+          s3_file = Pathname.new(file).relative_path_from(Pathname.new(config.dist_dir)).to_s
+          store_value(File.join(dir, s3_file), File.read(file))
         end
       end
 
       def get_list_of_revisions
         prefix = File.join(config.app_path)
-        url = "/#{config.bucket}?prefix=#{prefix}/&delimiter=/"
-        xml = REXML::Document.new(AWS::S3::Base.get(url).body)
-        xml.elements.collect("//CommonPrefixes/Prefix") { |e| e.text.gsub(prefix, "").gsub("/", "") }.select do |dir|
+        body = Aws::S3::Client.new.list_objects({bucket: config.bucket, delimiter: '/', prefix: prefix + "/"})
+        body.common_prefixes.map(&:prefix).map { |e| e.gsub(prefix, "").gsub("/", "") }.select do |dir|
           !!(Time.strptime(dir, DATE_FORMAT) rescue nil)
         end.sort
       end
@@ -145,45 +151,45 @@ class S3Deployer
       end
 
       def shas_by_revisions
-        @shas_by_revisions ||= get_value("SHAS", app_path_with_bucket).split("\n").inject({}) do |memo, line|
+        @shas_by_revisions ||= get_value(File.join(config.app_path, "SHAS")).split("\n").inject({}) do |memo, line|
           revision, sha = line.split(" - ").map(&:strip)
           memo[revision] = sha
           memo
         end
-      rescue AWS::S3::NoSuchKey
+      rescue Aws::S3::Errors::NoSuchKey
         {}
       end
 
       def current_revision_path
-        File.join(app_path_with_bucket, CURRENT_REVISION)
+        File.join(config.app_path, CURRENT_REVISION)
       end
 
-      def get_value(key, path)
-        puts "Retrieving value #{key} from #{path} on S3"
-        AWS::S3::S3Object.value(key, path)
+      def get_value(key)
+        puts "Retrieving value #{key} on S3"
+        Aws::S3::Resource.new.bucket(config.bucket).object(key).get.body.read
       end
 
       def store_current_revision(revision)
-        store_value(File.basename(current_revision_path), revision, File.dirname(current_revision_path))
+        store_value(current_revision_path, revision)
       end
 
       def store_git_hash(time)
         value = shas_by_revisions.
           merge(time => `git rev-parse HEAD`.strip).
           map { |sha, rev| "#{sha} - #{rev}" }.join("\n")
-        store_value("SHAS", value, app_path_with_bucket)
+        store_value(File.join(config.app_path, "SHAS"), value)
         @shas_by_revisions = nil
       end
 
       def get_current_revision
-        get_value(File.basename(current_revision_path), File.dirname(current_revision_path))
-      rescue AWS::S3::NoSuchKey
+        get_value(current_revision_path)
+      rescue Aws::S3::Errors::NoSuchKey
         nil
       end
 
-      def store_value(key, value, path)
-        puts "Storing value #{colorize(:yellow, key)} to #{colorize(:yellow, path)} on S3#{", #{colorize(:green, 'gzipped')}" if should_compress?(key)}"
-        options = {access: :public_read}
+      def store_value(key, value)
+        puts "Storing value #{colorize(:yellow, key)} on S3#{", #{colorize(:green, 'gzipped')}" if should_compress?(key)}"
+        options = {acl: "public-read"}
         if config.cache_control && !config.cache_control.empty?
           options[:cache_control] = config.cache_control
         end
@@ -191,7 +197,7 @@ class S3Deployer
           options[:content_encoding] = "gzip"
           value = compress(value)
         end
-        AWS::S3::S3Object.store(key, value, path, options)
+        Aws::S3::Resource.new.bucket(config.bucket).object(key).put(options.merge(body: value))
       end
 
       def should_compress?(key)
