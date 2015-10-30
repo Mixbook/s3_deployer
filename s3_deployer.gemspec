@@ -18,9 +18,10 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_dependency 'aws-s3'
   spec.add_dependency 'tzinfo'
   spec.add_dependency 'json'
+  spec.add_dependency 'parallel'
+  spec.add_dependency 'aws-sdk'
 
   spec.add_development_dependency "bundler", "~> 1.3"
   spec.add_development_dependency "rake"

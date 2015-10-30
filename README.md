@@ -23,6 +23,7 @@ You need to specify s3_deployer_config.rb file in your home directory, which may
 ```ruby
 S3Deployer.configure do
   bucket "some-bucket"
+  region 'us-east-1'
   app_name "devastator"
   app_path "path/to/#{app_name}#{"-#{version}" if version && version != ""}"
   dist_dir "dist"

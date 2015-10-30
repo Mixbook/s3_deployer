@@ -13,7 +13,7 @@ class S3Deployer
     end
 
     %w{
-      bucket app_name app_path mixbook_host dist_dir access_key_id secret_access_key
+      region bucket app_name app_path mixbook_host dist_dir access_key_id secret_access_key
       gzip colorize time_zone current_path cache_control
       before_deploy after_deploy before_stage after_stage before_switch after_switch
     }.each do |method|
