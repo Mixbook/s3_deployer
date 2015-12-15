@@ -16,6 +16,20 @@ Or install it yourself as:
 
     $ gem install s3_deployer
 
+## Features
+
+* Versioned deploys
+* Separated 'stage' (uploading code to S3) and 'switch' (switching to the right code version) tasks
+  (with ability to combine them with the 'deploy' task)
+* Parallel uploads
+* Retries in case of upload failures
+* Optional compression (by regexps, see example below)
+* before/after hooks for every step
+* Separate environments support
+* Automatic maintaining of the list of versions and mapping them to the list of git commits
+* Rollback via 'switch' command
+* Colorized output :)
+
 ## Usage
 
 You need to specify s3_deployer_config.rb file in your home directory, which may look like this:
