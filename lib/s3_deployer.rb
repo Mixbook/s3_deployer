@@ -13,6 +13,8 @@ require "s3_deployer/version"
 class S3Deployer
   DATE_FORMAT = "%Y%m%d%H%M%S"
   CURRENT_REVISION = "CURRENT_REVISION"
+  RETRY_TIMES = [1, 3, 8].freeze
+
   class << self
     attr_reader :config
 
@@ -166,7 +168,9 @@ class S3Deployer
 
       def get_value(key)
         puts "Retrieving value #{key} on S3"
-        Aws::S3::Resource.new.bucket(config.bucket).object(key).get.body.read
+        retry_block(RETRY_TIMES.dup) do
+          Aws::S3::Resource.new.bucket(config.bucket).object(key).get.body.read
+        end
       end
 
       def store_current_revision(revision)
@@ -188,7 +192,6 @@ class S3Deployer
       end
 
       def store_value(key, value)
-        puts "Storing value #{colorize(:yellow, key)} on S3#{", #{colorize(:green, 'gzipped')}" if should_compress?(key)}"
         options = {acl: "public-read"}
         if config.cache_control && !config.cache_control.empty?
           options[:cache_control] = config.cache_control
@@ -197,7 +200,28 @@ class S3Deployer
           options[:content_encoding] = "gzip"
           value = compress(value)
         end
-        Aws::S3::Resource.new.bucket(config.bucket).object(key).put(options.merge(body: value))
+        retry_block(RETRY_TIMES.dup) do
+          puts "Storing value #{colorize(:yellow, key)} on S3#{", #{colorize(:green, 'gzipped')}" if should_compress?(key)}"
+          Aws::S3::Resource.new.bucket(config.bucket).object(key).put(options.merge(body: value))
+        end
+      end
+
+      def retry_block(sleep_times, &block)
+        block.call
+      rescue Exception => e
+        puts "#{colorize(:red, "Error!")} #{e}\n\n#{e.backtrace.take(3).join("\n")}"
+        no_retry_exceptions = [Aws::S3::Errors::NoSuchKey]
+        if no_retry_exceptions.any? { |exc| e.is_a?(exc) }
+          raise e
+        elsif !sleep_times.empty?
+          sleep_time = sleep_times.shift
+          puts "Still have #{colorize(:yellow, "#{sleep_times.count} retries")}, so waiting for #{colorize(:yellow, "#{sleep_time} seconds")} and retrying..."
+          sleep sleep_time
+          retry_block(sleep_times, &block)
+        else
+          puts "Out of retries, failing..."
+          raise e
+        end
       end
 
       def should_compress?(key)

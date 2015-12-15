@@ -8,6 +8,10 @@ class S3Deployer
       def yellow(text)
         self.new(33).wrap(text)
       end
+
+      def red(text)
+        self.new(31).wrap(text)
+      end
     end
 
     def initialize(color)
