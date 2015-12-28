@@ -6,6 +6,7 @@ require 'rexml/document'
 require 'parallel'
 require 'aws-sdk'
 require 'aws-sdk-core/endpoint_provider' # it's needed by some reason for Ruby 2.2.3
+require 'mime-types'
 
 require "s3_deployer/config"
 require "s3_deployer/color"
@@ -201,6 +202,8 @@ class S3Deployer
           options[:content_encoding] = "gzip"
           value = compress(value)
         end
+        mime_type = MIME::Types.of(key).first
+        options[:content_type] = mime_type ? mime_type.content_type : "binary/octet-stream"
         retry_block(RETRY_TIMES.dup) do
           puts "Storing value #{colorize(:yellow, key)} on S3#{", #{colorize(:green, 'gzipped')}" if should_compress?(key)}"
           Aws::S3::Resource.new.bucket(config.bucket).object(key).put(options.merge(body: value))
