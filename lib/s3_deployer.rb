@@ -37,14 +37,14 @@ class S3Deployer
     end
 
     def deploy!
-      revision = time_zone.now.strftime(DATE_FORMAT)
+      revision = config.revision || time_zone.now.strftime(DATE_FORMAT)
       config.before_deploy[revision] if config.before_deploy
       stage!(revision)
       switch!(revision)
       config.after_deploy[revision] if config.after_deploy
     end
 
-    def stage!(revision = time_zone.now.strftime(DATE_FORMAT))
+    def stage!(revision = (config.revision || time_zone.now.strftime(DATE_FORMAT)))
       puts "Staging #{colorize(:green, revision)}"
       config.before_stage[revision] if config.before_stage
       copy_files_to_s3(revision)
@@ -62,9 +62,8 @@ class S3Deployer
         warn "You must specify the revision by REVISION env variable"
         exit(1)
       end
-      revision = normalize_revision(revision)
       config.before_switch[current_revision, revision] if config.before_switch
-      prefix = config.app_path.empty? ? revision : File.join(config.app_path, revision)
+      prefix = config.app_path.empty? ? revision : File.join(revisions_path, revision)
       list_of_objects = []
       Aws::S3::Resource.new.bucket(config.bucket).objects(prefix: prefix).each do |object_summary|
         list_of_objects << object_summary
@@ -124,13 +123,13 @@ class S3Deployer
     end
 
     def sha_of_revision(revision)
-      shas_by_revisions[normalize_revision(revision)]
+      shas_by_revisions[revision]
     end
 
     private
 
       def copy_files_to_s3(rev)
-        dir = File.join(config.app_path, rev)
+        dir = File.join(revisions_path, rev)
         Parallel.each(source_files_list, in_threads: 20) do |file|
           s3_file = Pathname.new(file).relative_path_from(Pathname.new(config.dist_dir)).to_s
           store_value(File.join(dir, s3_file), File.read(file))
@@ -138,11 +137,9 @@ class S3Deployer
       end
 
       def get_list_of_revisions
-        prefix = File.join(config.app_path)
+        prefix = revisions_path
         body = Aws::S3::Client.new.list_objects({bucket: config.bucket, delimiter: '/', prefix: prefix + "/"})
-        body.common_prefixes.map(&:prefix).map { |e| e.gsub(prefix, "").gsub("/", "") }.select do |dir|
-          !!(Time.strptime(dir, DATE_FORMAT) rescue nil)
-        end.sort
+        body.common_prefixes.map(&:prefix).map { |e| e.gsub(prefix, "").gsub("/", "") }.sort
       end
 
       def app_path_with_bucket
@@ -168,6 +165,10 @@ class S3Deployer
         File.join(config.app_path, CURRENT_REVISION)
       end
 
+      def revisions_path
+        File.join(config.app_path, "revisions")
+      end
+
       def get_value(key)
         puts "Retrieving value #{key} on S3"
         retry_block(RETRY_TIMES.dup) do
@@ -176,14 +177,14 @@ class S3Deployer
       end
 
       def store_current_revision(revision)
-        store_value(current_revision_path, revision)
+        store_value(current_revision_path, revision, cache_control: "max-age=0, no-cache")
       end
 
       def store_git_hash(time)
         value = shas_by_revisions.
           merge(time => `git rev-parse HEAD`.strip).
           map { |sha, rev| "#{sha} - #{rev}" }.join("\n")
-        store_value(File.join(config.app_path, "SHAS"), value)
+        store_value(File.join(config.app_path, "SHAS"), value, cache_control: "max-age=0, no-cache")
         @shas_by_revisions = nil
       end
 
@@ -193,8 +194,8 @@ class S3Deployer
         nil
       end
 
-      def store_value(key, value)
-        options = {acl: "public-read"}
+      def store_value(key, value, options = {})
+        options = {acl: "public-read"}.merge(options)
         if config.cache_control && !config.cache_control.empty?
           options[:cache_control] = config.cache_control
         end

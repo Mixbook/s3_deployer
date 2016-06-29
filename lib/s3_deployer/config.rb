@@ -4,7 +4,10 @@ class S3Deployer
 
     def initialize
       @version = ENV["VERSION"] || ""
-      @revision = ENV["REVISION"] || ""
+      @revision = ENV["REVISION"]
+      @access_key_id = ENV["AWS_ACCESS_KEY_ID"]
+      @secret_access_key = ENV["AWS_SECRET_ACCESS_KEY"]
+      
       @env = ENV["ENV"] || "production"
       @env_settings = {}
       colorize true
