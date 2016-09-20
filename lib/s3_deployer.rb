@@ -5,6 +5,7 @@ require 'tzinfo'
 require 'rexml/document'
 require 'parallel'
 require 'aws-sdk'
+require 'aws-sdk-resources/services/s3'
 require 'aws-sdk-core/endpoint_provider' # it's needed by some reason for Ruby 2.2.3
 require 'mime-types'
 
