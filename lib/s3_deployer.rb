@@ -28,7 +28,7 @@ class S3Deployer
 
       Aws.config.update({
         region: config.region,
-        credentials: Aws::Credentials.new(config.access_key_id, config.secret_access_key),
+        credentials: Aws::Credentials.new(config.access_key_id, config.secret_access_key, config.session_token),
       })
     end
 

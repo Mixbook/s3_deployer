@@ -77,6 +77,7 @@ S3Deployer.configure do
 
   access_key_id 'your S3 access key id'
   secret_access_key 'your S3 secret access key'
+  session_token 'your s3 session token (optional)'
 end
 ```
 

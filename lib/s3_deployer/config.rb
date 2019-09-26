@@ -7,7 +7,8 @@ class S3Deployer
       @revision = ENV["REVISION"]
       @access_key_id = ENV["AWS_ACCESS_KEY_ID"]
       @secret_access_key = ENV["AWS_SECRET_ACCESS_KEY"]
-      
+      @session_token = ENV["AWS_SESSION_TOKEN"]
+
       @env = ENV["ENV"] || "production"
       @env_settings = {}
       colorize true
